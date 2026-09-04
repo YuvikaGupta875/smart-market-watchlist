@@ -1,19 +1,15 @@
-﻿import { 
-  UserPersona, 
-  Watchlist, 
-  WatchlistItemAnalysis, 
-  ExecutiveBriefing, 
-  UserCheckpoint, 
-  CircuitBreakerStatus, 
+import {
+  UserPersona,
+  Watchlist,
+  WatchlistItemAnalysis,
+  ExecutiveBriefing,
+  UserCheckpoint,
+  CircuitBreakerStatus,
   UniverseAsset,
-  MarketQuote 
+  MarketQuote
 } from './types';
 
-// Use direct port 4000 communication when on local development to avoid proxy buffering
-export const BASE_URL = 
-  typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
-    ? 'http://127.0.0.1:4000/api'
-    : '/api';
+export const BASE_URL = import.meta.env.VITE_API_URL || '/api';
 
 export async function fetchUsers(): Promise<UserPersona[]> {
   const res = await fetch(`${BASE_URL}/watchlists/users`);
