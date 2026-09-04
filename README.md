@@ -1,117 +1,624 @@
-﻿# DeltaWatch: The Smart Market Watchlist
+# DeltaWatch — Smart Market Watchlist
 
-> **An Executive-Grade Market Triage Engine that answers: *"What has meaningfully changed since I last checked, and what requires my attention now?"***
+> **Don't just track stocks. Know what changed.**
 
----
+DeltaWatch is an executive-style market watchlist that helps users answer a simple question:
 
-## 🌟 Why DeltaWatch Exists
+**“What has meaningfully changed since I last checked, and what deserves my attention now?”**
 
-Traditional stock watchlists (Yahoo Finance, Apple Stocks, TradingView) are fundamentally static:
-1. **Zero Temporal Awareness**: They only display "Today's Change %" anchored to midnight or 9:30 AM market open. If you were away for 3 days or a week, a +0.2% intraday movement completely hides a +14% breakout that happened during your absence.
-2. **Noise Masking Signal**: A +1.0% drift on low holiday volume is shown identically to a +1.0% gap on 4x average volume with record earnings beats.
-3. **Scan Fatigue**: Investors are forced to scan through 30 ticker rows trying to spot anomalies manually.
-
-**DeltaWatch re-imagines the market watchlist as an Executive Triage Engine.**
+Traditional watchlists show prices and daily percentage changes. DeltaWatch adds a **temporal baseline**: whenever a user reviews their watchlist, the system stores a checkpoint. When they return later, the application compares the current market state against that checkpoint and highlights the stocks that have changed significantly.
 
 ---
 
-## 🧠 What Counts as a "Meaningful Change"?
+## Problem
 
-DeltaWatch does not treat all price changes equally. It calculates a multi-factor **Attention Score ($0 - 100$)** across 5 mathematical dimensions:
+A conventional watchlist can tell you:
 
-| Dimension | Metric / Anomaly Trigger | Weight |
-| :--- | :--- | :--- |
-| **1. Temporal $\Delta$ Shock** | Percent movement since the user's specific checkpoint timestamp ($\Delta_{\text{session}} = \frac{P_{\text{current}} - P_{\text{checkpoint}}}{P_{\text{checkpoint}}} \times 100\%$) | $35\%$ |
-| **2. Institutional Volume Footprint** | Relative Volume ($\text{RVOL} = \frac{\text{Current Volume}}{\text{20-Day Average Volume}}$). $\text{RVOL} \ge 2.0\text{x}$ signals institutional liquidity accumulation or distribution | $25\%$ |
-| **3. Technical & Regime Breakouts** | Crossing 52-Week High / Low ($\pm 0.8\%$), 20-Day Range breaches, and RSI(14) momentum extremes ($<30$ oversold, $>70$ overbought) | $20\%$ |
-| **4. Corporate Catalysts & Events** | Earnings reports released in the delta window, FDA/regulatory approvals, or high-urgency contract announcements | $15\%$ |
-| **5. Sector Beta Divergence** | Decoupling from the stock's Sector ETF (e.g. NVDA vs XLK). Identifies idiosyncratic shocks vs general market beta | $10\%$ |
+* AAPL is up 2.1%
+* NVDA is down 1.8%
+* TSLA has high volume
 
-### Triage Tiers:
-- **CRITICAL ($\ge 70$)**: Demands immediate triage; highlighted with pulsing indicators and surfaced in the top Executive Briefing.
-- **NOTABLE ($40 - 69$)**: Notable technical shifts or elevated volume.
-- **QUIET DRIFT ($< 40$)**: Routine market fluctuation. Filterable with 1-click using the "Filter Noise" button.
+But it does not answer:
+
+> **“What changed since the last time I actually looked?”**
+
+This creates information overload, especially when tracking many stocks.
+
+DeltaWatch solves this by combining **checkpoint-based change detection, market signals, and attention scoring** into a single triage system.
 
 ---
 
-## 🏛️ System Architecture
+## Key Features
 
-DeltaWatch is built as a decoupled, resilient full-stack application:
+### 1. Smart Watchlists
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│                    React 18 + Vite Frontend                 │
-│  - Executive Briefing Card ("Since you were last here...")   │
-│  - Sparklines with interactive "You Were Here" markers      │
-│  - Triage Filter Tabs (All / Critical / Notable / Noise)    │
-│  - Ticker Drawer (Audit timeline, RVOL gauge, thesis notes) │
-│  - Evaluator Lab (Time Machine & Shock Injector)            │
-└──────────────┬──────────────────────────────▲───────────────┘
-               │ REST API                     │ SSE Stream
-┌──────────────▼──────────────────────────────┴───────────────┐
-│                 Express + TypeScript Backend                │
-│  - Centralized Market Data Hub (deduplicated ticker cache)  │
-│  - Change & Attention Scoring Engine                        │
-│  - Circuit Breaker & Freshness Watchdog (3-state machine)   │
-│  - Server-Sent Events (SSE) live broadcaster                │
-└──────────────┬──────────────────────────────┬───────────────┘
-               │                              │
-┌──────────────▼──────────────┐┌──────────────▼───────────────┐
-│     SQLite Database (WAL)   ││   Multi-Source Market Data   │
-│  - Users / Personas         ││  - Live Yahoo Finance v8     │
-│  - Multiple Watchlists      ││  - High-Fidelity Simulator   │
-│  - Checkpoints & Snapshots  ││  - Synthetic Shock Injector  │
-│  - Persistent Thesis Notes  ││                              │
-└─────────────────────────────┘└──────────────────────────────┘
+Users can:
+
+* Create multiple watchlists
+* Add and remove stocks
+* Switch between watchlists
+* Search and filter stocks
+* Sort stocks by importance
+* Maintain notes and investment theses for individual stocks
+
+---
+
+### 2. Checkpoint-Based Change Detection
+
+Instead of using only today's percentage change, DeltaWatch stores a **review checkpoint**.
+
+When the user clicks **Mark Reviewed**, the current market state becomes their new baseline.
+
+On their next visit, the application calculates:
+
+```text
+Current Market State
+        |
+Previous Checkpoint
+        |
+Meaningful Change
+        |
+Attention Score
+        |
+Triage
 ```
 
----
-
-## 🛡️ Edge Cases & Resilience Engineering
-
-1. **Handling Stale, Delayed, or Conflicting Data**:
-   - Every price quote is tagged with `lastUpdated`, `source` (`live_market`, `cached`, `simulated`), and `freshness` (`FRESH`, `DELAYED`, `STALE`).
-   - If downstream network drops or Yahoo Finance rate-limits, the in-memory **Circuit Breaker** trips to `OPEN`.
-   - The UI never crashes or white-screens; it displays a clear `CIRCUIT OPEN (CACHED)` indicator with exact timestamp attribution.
-2. **State Persistence Across Sessions & Devices**:
-   - Backed by an embedded SQLite database running in **WAL (Write-Ahead Logging)** mode for zero disk contention and instant reads.
-   - Saves `user_checkpoints` containing exact price snapshots at the time of user review.
-   - When a user clicks **"Mark Reviewed"**, the current market state is committed as their new checkpoint baseline, smoothly resetting the temporal delta.
-3. **Scalability for Large Watchlists**:
-   - The `MarketDataHub` aggregates and deduplicates ticker requests so 1,000 active users tracking AAPL only generates a single upstream request.
-   - Real-time updates are broadcast to connected clients via a single lightweight **Server-Sent Events (SSE)** connection.
+This makes the system personalized to the user's actual review history.
 
 ---
 
-## 🧪 Evaluator Testing Guide (Try These Features!)
+### 3. Attention Score
 
-Open the app at **http://localhost:5173** and test:
+Each stock receives an **Attention Score from 0–100**.
 
-1. **The Executive Briefing**:
-   - Note the top briefing card explaining what happened since the checkpoint.
-   - Click **"Mark Reviewed"**: Notice how all deltas instantly reset to zero and the timer resets to "now".
-2. **The Time Machine**:
-   - Click **"Time Machine"** in the top bar.
-   - Select **"3 Days Ago"** or **"1 Week Ago"**: Watch the entire watchlist recalibrate and surface what accumulated over that absence!
-3. **Visual "You Were Here" Sparklines**:
-   - Look at the sparkline charts on any card or table row. Notice the vertical blue dashed line showing exactly where the price was when you last visited.
-4. **Market Shock Injection**:
-   - In the Time Machine modal, click **"NVDA: Earnings Blowout (+12.5%, 3.8x RVOL)"**.
-   - Watch NVDA jump to the top of the High Attention tier with `[Institutional Volume Surge]` and `[Surged 12.5% Since Review]` badges.
-5. **Noise Filtering**:
-   - Click **"Filter Noise"** in the triage bar. All calm tickers ($<40$ score) disappear, leaving only actionable positions.
-6. **Circuit Breaker Outage Test**:
-   - In the Time Machine modal, click **"Simulate Outage"**.
-   - The status badge changes to `CIRCUIT OPEN (CACHED)`, proving resilience without UI degradation.
-7. **Persona Switcher**:
-   - Switch between **"Alex Chen (AI & Tech Growth)"**, **"Sarah Lin (Macro & Dividend)"**, and **"David Ross (High-Beta Momentum)"**.
+The score combines multiple signals:
+
+| Signal            | What it detects                            |
+| ----------------- | ------------------------------------------ |
+| Price Shock       | Large movement since the checkpoint        |
+| Relative Volume   | Unusually high trading activity            |
+| Technical Signals | 52-week highs/lows and RSI conditions      |
+| Catalysts         | Recent company or market events            |
+| Sector Divergence | Stock behaving differently from its sector |
+
+The goal is not to predict whether a stock will rise or fall.
+
+The goal is to determine:
+
+> **“Is this worth investigating right now?”**
 
 ---
 
-## 🚀 Running Locally
+### 4. Triage
+
+Stocks are grouped into attention levels:
+
+* **Critical** — requires immediate attention
+* **Notable** — worth investigating
+* **Noise / Quiet Drift** — probably not worth interrupting the user for
+
+Users can filter the dashboard to focus only on meaningful changes.
+
+---
+
+### 5. Relative Volume (RVOL)
+
+DeltaWatch compares current trading volume against historical volume.
+
+A high RVOL can indicate that a price movement is accompanied by unusually strong market participation.
+
+This helps distinguish:
+
+```text
+Large price movement + normal volume
+```
+
+from:
+
+```text
+Large price movement + abnormal volume
+```
+
+---
+
+### 6. Technical Signals
+
+The system evaluates:
+
+* 52-week high/low proximity
+* RSI
+* Price movement
+* Relative volume
+
+These signals are combined rather than shown as isolated indicators.
+
+---
+
+### 7. Sector Divergence
+
+A stock's movement is compared against its sector ETF.
+
+For example:
+
+```text
+Stock:       +6.2%
+Sector ETF:  +1.1%
+
+Divergence:  +5.1%
+```
+
+A large divergence can indicate stock-specific movement rather than a broad sector move.
+
+---
+
+### 8. Persistent State
+
+Watchlists, checkpoints, snapshots, and notes are persisted using **SQLite**.
+
+This means the user's baseline is not lost when the application restarts.
+
+The checkpoint model is particularly important because:
+
+```text
+Session 1
+   |
+User reviews watchlist
+   |
+Checkpoint stored
+   |
+Application closes
+   |
+Session 2
+   |
+Current state compared against checkpoint
+```
+
+---
+
+### 9. Market Data Resilience
+
+Market data is an unreliable external dependency.
+
+DeltaWatch therefore tracks data freshness:
+
+* **FRESH**
+* **DELAYED**
+* **STALE**
+
+The backend also includes a circuit-breaker mechanism.
+
+If the upstream market-data provider repeatedly fails, the system can stop repeatedly hitting the dependency and serve cached information instead.
+
+---
+
+### 10. Live Updates
+
+The frontend receives market updates using **Server-Sent Events (SSE)**.
+
+This allows the server to push quote changes to connected clients without requiring the browser to repeatedly poll for every update.
+
+---
+
+### 11. Market Data Simulator
+
+The project includes a market simulator.
+
+This provides:
+
+* Deterministic development data
+* Simulated price movement
+* Volume changes
+* Relative-volume changes
+* Synthetic market shocks
+* Outage simulation
+
+This makes it possible to demonstrate the application's behavior without depending entirely on live market conditions.
+
+---
+
+### 12. Scenario Simulator
+
+The application includes a scenario mode for testing situations such as:
+
+* Large price shocks
+* Unusual volume
+* Market-data outages
+* Different user personas
+
+This makes it easier to demonstrate how the triage engine behaves under specific scenarios.
+
+---
+
+## Architecture
+
+```text
+                         +---------------------+
+                         |      React UI       |
+                         |     TypeScript      |
+                         +----------+----------+
+                                    |
+                           REST API | SSE
+                                    |
+                         +----------v----------+
+                         |   Express Server    |
+                         |     TypeScript      |
+                         +----------+----------+
+                                    |
+              +---------------------+---------------------+
+              |                     |                     |
+      +-------v-------+    +--------v---------+   +-------v-------+
+      |  Market Hub   |    | Attention Engine |   |    Routes     |
+      +-------+-------+    +------------------+   +---------------+
+              |
+       +------+--------+
+       |               |
++------v------+ +------v------+
+| Yahoo Data  | |  Simulator  |
++-------------+ +-------------+
+              |
+       +------v------+
+       | SQLite / WAL|
+       +-------------+
+```
+
+---
+
+## Attention Engine
+
+The core decision-making logic lives in:
+
+```text
+server/src/services/changeEngine.ts
+```
+
+The engine receives:
+
+* Current quote
+* Historical candles
+* Previous checkpoint
+* Previous snapshot price
+* Recent catalysts
+* User notes
+* Optional user alert threshold
+
+It then calculates:
+
+```text
+Price Delta
+     +
+Relative Volume
+     +
+Technical Signals
+     +
+Catalysts
+     +
+Sector Divergence
+     |
+Attention Score
+     |
+Triage Tier
+```
+
+---
+
+## Persistence Model
+
+SQLite stores application state including:
+
+* Users and personas
+* Watchlists
+* Watchlist items
+* Checkpoints
+* Snapshots
+* Notes
+
+The database uses **WAL (Write-Ahead Logging)** mode.
+
+This helps SQLite handle concurrent reads and writes more effectively.
+
+---
+
+## Scalability Approach
+
+A naive implementation could request market data independently for every user:
+
+```text
+User A -> AAPL
+User B -> AAPL
+User C -> AAPL
+User D -> AAPL
+```
+
+DeltaWatch instead centralizes market-data access through the **MarketHub**:
+
+```text
+                  +-- User A
+                  |
+MarketHub -------+-- User B
+                  |
+                  +-- User C
+                  |
+                  +-- User D
+```
+
+The MarketHub maintains an in-memory cache and deduplicates watched symbols.
+
+For example, if many users are watching AAPL, the architecture avoids treating those as independent market-data requests.
+
+SSE is then used to distribute updates to connected clients.
+
+---
+
+## Failure Handling
+
+The application considers several failure cases.
+
+### Stale Data
+
+Every quote contains freshness information:
+
+```text
+FRESH
+DELAYED
+STALE
+```
+
+### Upstream Failure
+
+If the market-data provider fails repeatedly, the circuit breaker can enter an **OPEN** state.
+
+The system can then fall back to cached information instead of continuously hitting the failing dependency.
+
+### Market Outage Simulation
+
+The evaluator can intentionally simulate an outage to verify the resilience behavior.
+
+---
+
+## Testing
+
+The backend includes tests for the change and attention engine.
+
+Run:
 
 ```bash
-# In smart-market-watchlist directory:
-npm run dev:server   # Starts backend on http://localhost:4000
-npm run dev:client   # Starts frontend on http://localhost:5173
+npm test
 ```
+
+The application can also be manually evaluated through:
+
+* Executive Briefing
+* Mark Reviewed
+* Time Machine
+* Triage filters
+* Scenario Simulator
+* Market outage simulation
+* Persona switching
+
+---
+
+## Tech Stack
+
+### Frontend
+
+* React
+* TypeScript
+* Vite
+* CSS
+
+### Backend
+
+* Node.js
+* Express
+* TypeScript
+
+### Database
+
+* SQLite
+* SQLite WAL
+
+### Market Data
+
+* Yahoo Finance
+* Market simulator
+
+### Communication
+
+* REST APIs
+* Server-Sent Events (SSE)
+
+### Testing
+
+* Jest
+
+---
+
+## Project Structure
+
+```text
+smart-market-watchlist/
+|
++-- client/
+|   +-- src/
+|       +-- components/
+|       |   +-- AddTickerModal.tsx
+|       |   +-- ExecutiveBriefing.tsx
+|       |   +-- Header.tsx
+|       |   +-- ScenarioSimulatorModal.tsx
+|       |   +-- Sparkline.tsx
+|       |   +-- TickerDrawer.tsx
+|       |   +-- TriageBar.tsx
+|       |   +-- WatchlistCard.tsx
+|       |   +-- WatchlistTable.tsx
+|       |
+|       +-- App.tsx
+|       +-- api.ts
+|       +-- types.ts
+|       +-- ...
+|
++-- server/
+|   +-- src/
+|       +-- db/
+|       |   +-- database.ts
+|       |   +-- seed.ts
+|       |
+|       +-- routes/
+|       |   +-- attention.ts
+|       |   +-- market.ts
+|       |   +-- simulation.ts
+|       |   +-- sse.ts
+|       |   +-- watchlists.ts
+|       |
+|       +-- services/
+|       |   +-- briefing.ts
+|       |   +-- changeEngine.ts
+|       |   +-- marketHub.ts
+|       |   +-- providerSim.ts
+|       |   +-- providerYahoo.ts
+|       |
+|       +-- tests/
+|           +-- changeEngine.test.ts
+|       |
+|       +-- index.ts
+|
++-- README.md
++-- package.json
+```
+
+---
+
+## Running Locally
+
+### Prerequisites
+
+* Node.js 18+
+* npm
+
+### Install Dependencies
+
+```bash
+npm install
+```
+
+If the client and server have separate dependencies:
+
+```bash
+cd client
+npm install
+
+cd ../server
+npm install
+```
+
+### Start Backend
+
+```bash
+npm run dev:server
+```
+
+### Start Frontend
+
+In another terminal:
+
+```bash
+npm run dev:client
+```
+
+Then open the Vite URL shown in the terminal.
+
+---
+
+## Example User Flow
+
+```text
+1. User opens DeltaWatch
+            |
+2. Selects a watchlist
+            |
+3. Reviews current market state
+            |
+4. Clicks "Mark Reviewed"
+            |
+5. Checkpoint is persisted
+            |
+6. User leaves
+            |
+7. Market changes
+            |
+8. User returns
+            |
+9. Current state is compared against checkpoint
+            |
+10. Attention Engine scores each stock
+            |
+11. User sees Critical / Notable / Noise
+            |
+12. User investigates meaningful changes
+```
+
+---
+
+## Design Philosophy
+
+DeltaWatch intentionally focuses on **triage rather than prediction**.
+
+It does not attempt to tell users:
+
+> “Buy this stock.”
+
+Instead, it answers:
+
+> **“Something changed. Here's why it may deserve your attention.”**
+
+The most important design decision is the **checkpoint-based temporal baseline**. This transforms the application from a passive stock list into a system that remembers what the user has already seen.
+
+---
+
+## Future Improvements
+
+Possible future extensions include:
+
+* Multiple market-data providers with conflict reconciliation
+* Authentication and multi-device synchronization
+* PostgreSQL for larger deployments
+* Redis for distributed market-data caching
+* Background job queues for market-data ingestion
+* More sophisticated anomaly detection
+* Configurable attention-score weights
+* Notifications for critical changes
+* Portfolio-level risk analysis
+* Historical attention-score analytics
+
+---
+
+## Assignment Coverage
+
+| Requirement                | Implementation            |
+| -------------------------- | ------------------------- |
+| Create/manage watchlist    | Yes                       |
+| Latest market information  | Yes                       |
+| See what changed later     | Yes, checkpoints          |
+| Define meaningful change   | Yes, Attention Engine     |
+| Frontend                   | React + TypeScript        |
+| Backend                    | Express + TypeScript      |
+| Persistent state           | SQLite                    |
+| Stale/delayed data         | Yes                       |
+| Dependency failure         | Circuit breaker + cache   |
+| Scalability considerations | MarketHub + caching + SSE |
+| Edge-case handling         | Yes                       |
+| Automated tests            | Yes                       |
+
+---
+
+## Author
+
+**Yuvika Gupta**
+
+Built as a full-stack engineering project focused on market-data processing, temporal state, resilience, and intelligent information triage.
+
+---
+
+## License
+
+This project is intended for educational and demonstration purposes.
+
