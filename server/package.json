@@ -2,11 +2,11 @@
   "name": "smart-market-watchlist-server",
   "version": "1.0.0",
   "description": "Backend engine for DeltaWatch smart market watchlist",
-  "main": "src/index.ts",
+  "main": "dist/index.js",
   "scripts": {
     "dev": "tsx watch src/index.ts",
     "build": "tsc",
-    "start": "tsx src/index.ts",
+    "start": "node dist/index.js",
     "test": "node --test --import tsx src/tests/*.test.ts"
   },
   "dependencies": {
